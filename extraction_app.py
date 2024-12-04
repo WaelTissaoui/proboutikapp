@@ -5,7 +5,6 @@ from Extraction_api import extract_product_info, sanitize_message, transcribe_au
 
 
 def custom_css():
-    # Custom CSS for styling
     st.markdown(
         """
         <style>
@@ -15,41 +14,6 @@ def custom_css():
             background: #f5f7fa;
         }
 
-        /* Chat Message Styles */
-        .chat-message {
-            margin-bottom: 15px;
-            display: flex;
-            align-items: flex-start;
-            width: 100%;
-        }
-
-        .chat-message.user {
-            justify-content: flex-end;
-        }
-
-        .chat-message .message-content {
-            max-width: 65%;
-            padding: 15px;
-            border-radius: 12px;
-            font-size: 16px;
-            line-height: 1.6;
-            word-wrap: break-word;
-            box-shadow: 0 3px 12px rgba(0, 0, 0, 0.1);
-        }
-
-        .chat-message.user .message-content {
-            background: linear-gradient(135deg, #6b73ff 0%, #000dff 100%);
-            color: white;
-            text-align: right;
-        }
-
-        .chat-message.system .message-content {
-            background: #ffffff;
-            color: #333;
-            text-align: left;
-        }
-
-        /* Information Card for System Messages */
         .info-card {
             background-color: #ffffff;
             border-radius: 10px;
@@ -65,15 +29,14 @@ def custom_css():
     )
 
 
-# Streamlit app
 def main():
-    custom_css()  # Apply custom CSS
+    custom_css()
 
-    # Initialize app_mode in session state
+    # Initialize app mode
     if "app_mode" not in st.session_state:
-        st.session_state.app_mode = "Image Extraction Chat"  # Default mode
+        st.session_state.app_mode = "Image Extraction Chat"
 
-    # Initialize chat histories
+    # Initialize histories
     if "image_chat_history" not in st.session_state:
         st.session_state.image_chat_history = []
     if "audio_chat_history" not in st.session_state:
@@ -87,7 +50,7 @@ def main():
         if st.button("🎤 Speech Extraction"):
             st.session_state.app_mode = "Speech Extraction"
 
-    # Determine the app mode
+    # Determine app mode
     app_mode = st.session_state.app_mode
 
     if app_mode == "Image Extraction Chat":
@@ -99,31 +62,27 @@ def main():
 def image_extraction_chat():
     st.title("🖼️ Image-Based Product Information")
 
-    # File uploader for images
+    # Upload or capture an image
     uploaded_image = st.file_uploader("Upload an image...", type=["jpg", "jpeg", "png"])
-    
-    # Camera input for taking pictures
     camera_image = st.camera_input("Take a picture")
 
-    # Initialize the image to process
-    image_to_process = None
-    image_name = None
+    # Reset image_to_process if no new image is selected
+    if uploaded_image is None and camera_image is None:
+        st.session_state.image_to_process = None
+        st.session_state.image_name = None
 
-    # Give priority to the most recent input
+    # Determine which image to process
     if camera_image is not None:
-        # Use the image captured from the camera
-        image_to_process = camera_image
-        image_name = "captured_image.png"  # Default name for camera image
+        st.session_state.image_to_process = camera_image
+        st.session_state.image_name = "captured_image.png"
     elif uploaded_image is not None:
-        # Use the uploaded image
-        image_to_process = uploaded_image
-        image_name = uploaded_image.name
+        st.session_state.image_to_process = uploaded_image
+        st.session_state.image_name = uploaded_image.name
 
     # Process the selected image
-    if image_to_process is not None:
+    if st.session_state.image_to_process is not None:
         with st.spinner("Processing image..."):
-            # Analyze the image
-            product_info = extract_product_info(image_to_process)
+            product_info = extract_product_info(st.session_state.image_to_process)
 
         # Format the extracted information
         formatted_message = f"""
@@ -138,8 +97,8 @@ def image_extraction_chat():
         </div>
         """
 
-        # Store the image and extracted information in session state
-        base64_image = base64.b64encode(image_to_process.getvalue()).decode("utf-8")
+        # Save the history
+        base64_image = base64.b64encode(st.session_state.image_to_process.getvalue()).decode("utf-8")
         st.session_state.image_chat_history.append(
             {
                 "role": "user",
@@ -154,7 +113,7 @@ def image_extraction_chat():
             }
         )
 
-    # Display chat history if available
+    # Display history
     if len(st.session_state.image_chat_history) > 0:
         st.write("### Image Chat History")
         for chat in st.session_state.image_chat_history:
@@ -165,29 +124,34 @@ def image_extraction_chat():
 
 
 def speech_extraction():
-    st.markdown("<div class='speech-extraction'>", unsafe_allow_html=True)
     st.title("🎤 Speech-Based Product Information")
-    st.write("Upload a WAV or MP3 file for transcription or record audio.")
 
+    # Upload or record audio
     uploaded_audio = st.file_uploader("Upload an audio file...", type=["wav", "mp3"])
+    recorded_audio = st.audio_input("Record audio")
 
     audio_to_process = None
+    audio_name = None
 
-    if uploaded_audio is not None:
+    # Determine which audio to process
+    if recorded_audio is not None:
+        audio_to_process = recorded_audio
+        audio_name = "recorded_audio.wav"
+    elif uploaded_audio is not None:
         audio_to_process = uploaded_audio
         audio_name = uploaded_audio.name
 
+    # Process audio if available
     if audio_to_process is not None:
         with st.spinner("Transcribing audio..."):
-            # Use a temporary file to save the uploaded or recorded audio
             with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio_file:
                 temp_audio_file.write(audio_to_process.getvalue())
                 temp_audio_path = temp_audio_file.name
 
-            # Transcribe the uploaded audio file
+            # Transcribe the audio file
             transcription = transcribe_audio_file(temp_audio_path)
 
-        # Format and save the transcription result in audio chat history
+        # Format and save transcription
         formatted_message = f"""
         <div style="font-size: 18px; line-height: 1.6;">
             <strong>File:</strong> {audio_name}<br>
@@ -208,7 +172,7 @@ def speech_extraction():
             }
         )
 
-    # Display Audio Chat History if available
+    # Display transcription history
     if len(st.session_state.audio_chat_history) > 0:
         st.write("### Audio Chat History")
         for chat in st.session_state.audio_chat_history:
@@ -216,7 +180,6 @@ def speech_extraction():
                 st.markdown(f"**User Uploaded File**: {chat['message']}")
             elif chat["role"] == "system":
                 st.markdown(f"<div class='info-card'>{chat['message']}</div>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
