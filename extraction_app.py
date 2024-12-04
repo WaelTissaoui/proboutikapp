@@ -3,12 +3,10 @@ import base64
 import tempfile
 from Extraction_api import extract_product_info, sanitize_message, transcribe_audio_file
 
-
 def custom_css():
     st.markdown(
         """
         <style>
-        /* General Styles */
         body {
             font-family: 'Roboto', sans-serif;
             background: #f5f7fa;
@@ -29,18 +27,21 @@ def custom_css():
     )
 
 
+# Streamlit app
 def main():
     custom_css()
 
-    # Initialize app mode
+    # Initialize app_mode in session state
     if "app_mode" not in st.session_state:
         st.session_state.app_mode = "Image Extraction Chat"
 
-    # Initialize histories
+    # Initialize chat histories
     if "image_chat_history" not in st.session_state:
         st.session_state.image_chat_history = []
     if "audio_chat_history" not in st.session_state:
         st.session_state.audio_chat_history = []
+    if "image_processed" not in st.session_state:
+        st.session_state.image_processed = False
 
     # Sidebar navigation
     with st.sidebar:
@@ -49,6 +50,8 @@ def main():
             st.session_state.app_mode = "Image Extraction Chat"
         if st.button("🎤 Speech Extraction"):
             st.session_state.app_mode = "Speech Extraction"
+        if st.button("🔄 Reset"):
+            reset_session_state()
 
     # Determine app mode
     app_mode = st.session_state.app_mode
@@ -59,6 +62,15 @@ def main():
         speech_extraction()
 
 
+def reset_session_state():
+    """Reset the session state to clear all data."""
+    st.session_state.image_chat_history = []
+    st.session_state.audio_chat_history = []
+    st.session_state.image_processed = False
+    st.session_state.app_mode = "Image Extraction Chat"
+    st.experimental_rerun()
+
+
 def image_extraction_chat():
     st.title("🖼️ Image-Based Product Information")
 
@@ -66,54 +78,55 @@ def image_extraction_chat():
     uploaded_image = st.file_uploader("Upload an image...", type=["jpg", "jpeg", "png"])
     camera_image = st.camera_input("Take a picture")
 
-    # Reset image_to_process if no new image is selected
-    if uploaded_image is None and camera_image is None:
-        st.session_state.image_to_process = None
-        st.session_state.image_name = None
+    # Process the latest input
+    if not st.session_state.image_processed:
+        if camera_image is not None:
+            process_image(camera_image, "captured_image.png")
+        elif uploaded_image is not None:
+            process_image(uploaded_image, uploaded_image.name)
 
-    # Determine which image to process
-    if camera_image is not None:
-        st.session_state.image_to_process = camera_image
-        st.session_state.image_name = "captured_image.png"
-    elif uploaded_image is not None:
-        st.session_state.image_to_process = uploaded_image
-        st.session_state.image_name = uploaded_image.name
 
-    # Process the selected image
-    if st.session_state.image_to_process is not None:
-        with st.spinner("Processing image..."):
-            product_info = extract_product_info(st.session_state.image_to_process)
+def process_image(image, image_name):
+    """Process the uploaded or captured image."""
+    st.session_state.image_processed = True
+    with st.spinner("Processing image..."):
+        product_info = extract_product_info(image)
 
-        # Format the extracted information
-        formatted_message = f"""
-        <div style="font-size: 18px; line-height: 1.6;">
-            <strong>Extracted Information:</strong>
-            <ul style="list-style-type: disc; margin-left: 20px;">
-                <li><strong>Product Name:</strong> {product_info['product_name']}</li>
-                <li><strong>Company:</strong> {product_info['company']}</li>
-                <li><strong>Start Date:</strong> {product_info['start_date']}</li>
-                <li><strong>End Date:</strong> {product_info['end_date']}</li>
-            </ul>
-        </div>
-        """
+    # Format the extracted information
+    formatted_message = f"""
+    <div style="font-size: 18px; line-height: 1.6;">
+        <strong>Extracted Information:</strong>
+        <ul style="list-style-type: disc; margin-left: 20px;">
+            <li><strong>Product Name:</strong> {product_info['product_name']}</li>
+            <li><strong>Company:</strong> {product_info['company']}</li>
+            <li><strong>Start Date:</strong> {product_info['start_date']}</li>
+            <li><strong>End Date:</strong> {product_info['end_date']}</li>
+        </ul>
+    </div>
+    """
 
-        # Save the history
-        base64_image = base64.b64encode(st.session_state.image_to_process.getvalue()).decode("utf-8")
-        st.session_state.image_chat_history.append(
-            {
-                "role": "user",
-                "image": base64_image,
-                "message": None,
-            }
-        )
-        st.session_state.image_chat_history.append(
-            {
-                "role": "system",
-                "message": sanitize_message(formatted_message),
-            }
-        )
+    # Save the processed image and data to chat history
+    base64_image = base64.b64encode(image.getvalue()).decode("utf-8")
+    st.session_state.image_chat_history.append(
+        {
+            "role": "user",
+            "image": base64_image,
+            "message": None,
+        }
+    )
+    st.session_state.image_chat_history.append(
+        {
+            "role": "system",
+            "message": sanitize_message(formatted_message),
+        }
+    )
 
-    # Display history
+    # Display chat history
+    display_image_chat_history()
+
+
+def display_image_chat_history():
+    """Display the image chat history."""
     if len(st.session_state.image_chat_history) > 0:
         st.write("### Image Chat History")
         for chat in st.session_state.image_chat_history:
@@ -133,7 +146,6 @@ def speech_extraction():
     audio_to_process = None
     audio_name = None
 
-    # Determine which audio to process
     if recorded_audio is not None:
         audio_to_process = recorded_audio
         audio_name = "recorded_audio.wav"
@@ -141,17 +153,15 @@ def speech_extraction():
         audio_to_process = uploaded_audio
         audio_name = uploaded_audio.name
 
-    # Process audio if available
     if audio_to_process is not None:
         with st.spinner("Transcribing audio..."):
             with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio_file:
                 temp_audio_file.write(audio_to_process.getvalue())
                 temp_audio_path = temp_audio_file.name
 
-            # Transcribe the audio file
             transcription = transcribe_audio_file(temp_audio_path)
 
-        # Format and save transcription
+        # Save transcription to chat history
         formatted_message = f"""
         <div style="font-size: 18px; line-height: 1.6;">
             <strong>File:</strong> {audio_name}<br>
@@ -172,7 +182,12 @@ def speech_extraction():
             }
         )
 
-    # Display transcription history
+        # Display audio chat history
+        display_audio_chat_history()
+
+
+def display_audio_chat_history():
+    """Display the audio chat history."""
     if len(st.session_state.audio_chat_history) > 0:
         st.write("### Audio Chat History")
         for chat in st.session_state.audio_chat_history:
