@@ -3,6 +3,7 @@ import base64
 import tempfile
 from Extraction_api import extract_product_info, sanitize_message, transcribe_audio_file
 
+
 def custom_css():
     # Custom CSS for styling
     st.markdown(
@@ -58,64 +59,11 @@ def custom_css():
             line-height: 1.6;
             font-size: 18px;
         }
-
-        /* Sidebar Buttons */
-        .sidebar-buttons {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .sidebar-buttons button {
-            background-color: #0078d7;
-            color: white;
-            border: none;
-            padding: 12px 16px;
-            border-radius: 6px;
-            font-size: 16px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            transition: background-color 0.3s ease;
-        }
-
-        .sidebar-buttons button:hover {
-            background-color: #005bb5;
-        }
-
-        .sidebar-buttons button span {
-            margin-left: 8px;
-        }
-
-        /* Image Styling */
-        img {
-            border-radius: 8px;
-            box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.2);
-            margin-bottom: 10px;
-        }
-
-        /* Adjustments for Speech Extraction Section */
-        .speech-extraction .info-card {
-            padding: 15px;
-            margin: 10px 0;
-            font-size: 16px;
-        }
-
-        .speech-extraction h1 {
-            font-size: 24px;
-            margin-bottom: 10px;
-        }
-
-        .speech-extraction .stButton button {
-            width: 100%;
-            padding: 10px;
-            font-size: 16px;
-        }
-
         </style>
         """,
         unsafe_allow_html=True,
     )
+
 
 # Streamlit app
 def main():
@@ -147,43 +95,50 @@ def main():
     elif app_mode == "Speech Extraction":
         speech_extraction()
 
+
 def image_extraction_chat():
     st.title("🖼️ Image-Based Product Information")
 
+    # File uploader for images
     uploaded_image = st.file_uploader("Upload an image...", type=["jpg", "jpeg", "png"])
+    
+    # Camera input for taking pictures
     camera_image = st.camera_input("Take a picture")
 
+    # Initialize the image to process
     image_to_process = None
+    image_name = None
 
-    if uploaded_image is not None:
+    # Give priority to the most recent input
+    if camera_image is not None:
+        # Use the image captured from the camera
+        image_to_process = camera_image
+        image_name = "captured_image.png"  # Default name for camera image
+    elif uploaded_image is not None:
+        # Use the uploaded image
         image_to_process = uploaded_image
         image_name = uploaded_image.name
-    elif camera_image is not None:
-        image_to_process = camera_image
-        image_name = "captured_image.png"  # Assign a default name
 
+    # Process the selected image
     if image_to_process is not None:
         with st.spinner("Processing image..."):
+            # Analyze the image
             product_info = extract_product_info(image_to_process)
 
-        formatted_message = """
+        # Format the extracted information
+        formatted_message = f"""
         <div style="font-size: 18px; line-height: 1.6;">
             <strong>Extracted Information:</strong>
             <ul style="list-style-type: disc; margin-left: 20px;">
-                <li><strong>Product Name:</strong> {product_name}</li>
-                <li><strong>Company:</strong> {company}</li>
-                <li><strong>Start Date:</strong> {start_date}</li>
-                <li><strong>End Date:</strong> {end_date}</li>
+                <li><strong>Product Name:</strong> {product_info['product_name']}</li>
+                <li><strong>Company:</strong> {product_info['company']}</li>
+                <li><strong>Start Date:</strong> {product_info['start_date']}</li>
+                <li><strong>End Date:</strong> {product_info['end_date']}</li>
             </ul>
         </div>
-        """.format(
-            product_name=product_info['product_name'],
-            company=product_info['company'],
-            start_date=product_info['start_date'],
-            end_date=product_info['end_date']
-        )
+        """
 
-        # Add the user's uploaded image and response to the image chat history
+        # Store the image and extracted information in session state
         base64_image = base64.b64encode(image_to_process.getvalue()).decode("utf-8")
         st.session_state.image_chat_history.append(
             {
@@ -199,14 +154,15 @@ def image_extraction_chat():
             }
         )
 
-    # Display Image Chat History if it exists
+    # Display chat history if available
     if len(st.session_state.image_chat_history) > 0:
         st.write("### Image Chat History")
         for chat in st.session_state.image_chat_history:
             if chat["role"] == "user" and "image" in chat:
-                st.image(base64.b64decode(chat["image"]), caption="Uploaded Image", width=400)
+                st.image(base64.b64decode(chat["image"]), caption="Uploaded or Captured Image", width=400)
             elif chat["role"] == "system":
-                st.markdown(f"<div class='info-card'>{chat['message']}", unsafe_allow_html=True)
+                st.markdown(f"<div class='info-card'>{chat['message']}</div>", unsafe_allow_html=True)
+
 
 def speech_extraction():
     st.markdown("<div class='speech-extraction'>", unsafe_allow_html=True)
@@ -214,16 +170,12 @@ def speech_extraction():
     st.write("Upload a WAV or MP3 file for transcription or record audio.")
 
     uploaded_audio = st.file_uploader("Upload an audio file...", type=["wav", "mp3"])
-    recorded_audio = st.audio_input("Record audio")
 
     audio_to_process = None
 
     if uploaded_audio is not None:
         audio_to_process = uploaded_audio
         audio_name = uploaded_audio.name
-    elif recorded_audio is not None:
-        audio_to_process = recorded_audio
-        audio_name = "recorded_audio.wav"  # Assign a default name
 
     if audio_to_process is not None:
         with st.spinner("Transcribing audio..."):
@@ -236,16 +188,13 @@ def speech_extraction():
             transcription = transcribe_audio_file(temp_audio_path)
 
         # Format and save the transcription result in audio chat history
-        formatted_message = """
+        formatted_message = f"""
         <div style="font-size: 18px; line-height: 1.6;">
-            <strong>File:</strong> {file_name}<br>
+            <strong>File:</strong> {audio_name}<br>
             <strong>Transcription:</strong><br>
             <div style="margin-left: 20px;">{transcription}</div>
         </div>
-        """.format(
-            file_name=audio_name,
-            transcription=transcription
-        )
+        """
         st.session_state.audio_chat_history.append(
             {
                 "role": "user",
@@ -259,15 +208,16 @@ def speech_extraction():
             }
         )
 
-    # Display Audio Chat History if it exists
+    # Display Audio Chat History if available
     if len(st.session_state.audio_chat_history) > 0:
         st.write("### Audio Chat History")
         for chat in st.session_state.audio_chat_history:
             if chat["role"] == "user":
                 st.markdown(f"**User Uploaded File**: {chat['message']}")
             elif chat["role"] == "system":
-                st.markdown(f"<div class='info-card'>{chat['message']}", unsafe_allow_html=True)
+                st.markdown(f"<div class='info-card'>{chat['message']}</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
+
 
 if __name__ == "__main__":
     main()
