@@ -44,6 +44,8 @@ def main():
         st.session_state.image_chat_history = []
     if "audio_chat_history" not in st.session_state:
         st.session_state.audio_chat_history = []
+    if "last_processed_input" not in st.session_state:
+        st.session_state.last_processed_input = None
 
     # Sidebar navigation
     with st.sidebar:
@@ -69,11 +71,16 @@ def image_extraction_chat():
     uploaded_image = st.file_uploader("Upload an image...", type=["jpg", "jpeg", "png"])
     camera_image = st.camera_input("Take a picture")
 
-    # Process the most recent input
+    # Determine the most recent input
     if camera_image is not None:
-        process_image(camera_image, "Captured Image")
+        if st.session_state.last_processed_input != "camera_image":
+            process_image(camera_image, "Captured Image")
+            st.session_state.last_processed_input = "camera_image"
+
     elif uploaded_image is not None:
-        process_image(uploaded_image, uploaded_image.name)
+        if st.session_state.last_processed_input != "uploaded_image":
+            process_image(uploaded_image, uploaded_image.name)
+            st.session_state.last_processed_input = "uploaded_image"
 
     # Display chat history
     display_image_chat_history()
@@ -140,11 +147,16 @@ def speech_extraction():
     uploaded_audio = st.file_uploader("Upload an audio file...", type=["wav", "mp3"])
     recorded_audio = st.audio_input("Record audio")
 
-    # Process the most recent input
+    # Determine the most recent input
     if recorded_audio is not None:
-        process_audio(recorded_audio, "Recorded Audio")
+        if st.session_state.last_processed_input != "recorded_audio":
+            process_audio(recorded_audio, "Recorded Audio")
+            st.session_state.last_processed_input = "recorded_audio"
+
     elif uploaded_audio is not None:
-        process_audio(uploaded_audio, uploaded_audio.name)
+        if st.session_state.last_processed_input != "uploaded_audio":
+            process_audio(uploaded_audio, uploaded_audio.name)
+            st.session_state.last_processed_input = "uploaded_audio"
 
     # Display chat history
     display_audio_chat_history()
