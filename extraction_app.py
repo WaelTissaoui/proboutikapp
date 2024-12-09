@@ -55,7 +55,7 @@ def main():
         if st.button("🎤 Speech Extraction"):
             st.session_state.app_mode = "Speech Extraction"
 
-    # Determine app mode
+    
     app_mode = st.session_state.get("app_mode", "Image Extraction Chat")
 
     if app_mode == "Image Extraction Chat":
@@ -67,11 +67,11 @@ def main():
 def image_extraction_chat():
     st.title("🖼️ Image-Based Product Information")
 
-    # File uploader and camera input
+    
     uploaded_image = st.file_uploader("Upload an image...", type=["jpg", "jpeg", "png"])
     camera_image = st.camera_input("Take a picture")
 
-    # Determine the most recent input
+    
     if camera_image is not None:
         if st.session_state.last_processed_input != "camera_image":
             process_image(camera_image, "Captured Image")
@@ -82,7 +82,7 @@ def image_extraction_chat():
             process_image(uploaded_image, uploaded_image.name)
             st.session_state.last_processed_input = "uploaded_image"
 
-    # Display chat history
+    
     display_image_chat_history()
 
 
@@ -91,7 +91,7 @@ def process_image(image, image_name):
     # Convert the image to base64 for chat display
     base64_image = base64.b64encode(image.getvalue()).decode("utf-8")
 
-    # Add the image to chat history
+    
     st.session_state.image_chat_history.append(
         {
             "role": "user",
@@ -100,11 +100,11 @@ def process_image(image, image_name):
         }
     )
 
-    # Extract product information
+    
     with st.spinner("Processing image..."):
         product_info = extract_product_info(image)
 
-    # Format the extracted information
+    
     formatted_message = f"""
     <div class="info-card">
         <strong>Extracted Information:</strong>
@@ -117,7 +117,7 @@ def process_image(image, image_name):
     </div>
     """
 
-    # Add the extracted information to chat history
+    
     st.session_state.image_chat_history.append(
         {
             "role": "system",
@@ -143,11 +143,11 @@ def display_image_chat_history():
 def speech_extraction():
     st.title("🎤 Speech-Based Product Information")
 
-    # File uploader and audio recorder
+    
     uploaded_audio = st.file_uploader("Upload an audio file...", type=["wav", "mp3"])
     recorded_audio = st.audio_input("Record audio")
 
-    # Determine the most recent input
+    
     if recorded_audio is not None:
         if st.session_state.last_processed_input != "recorded_audio":
             process_audio(recorded_audio, "Recorded Audio")
@@ -158,22 +158,21 @@ def speech_extraction():
             process_audio(uploaded_audio, uploaded_audio.name)
             st.session_state.last_processed_input = "uploaded_audio"
 
-    # Display chat history
+    
     display_audio_chat_history()
 
 
 def process_audio(audio, audio_name):
-    """Process the uploaded or recorded audio and save to chat history."""
-    # Save the audio file temporarily
+    
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio_file:
         temp_audio_file.write(audio.getvalue())
         temp_audio_path = temp_audio_file.name
 
-    # Transcribe the audio
+    
     with st.spinner("Transcribing audio..."):
         transcription = transcribe_audio_file(temp_audio_path)
 
-    # Add transcription to chat history
+    
     formatted_message = f"""
     <div class="info-card">
         <strong>File:</strong> {audio_name}<br>
