@@ -1,7 +1,7 @@
 import streamlit as st
 import base64
 import tempfile
-from Extraction_api import extract_product_info, sanitize_message, transcribe_audio_file
+from Extraction_api import extract_product_info, sanitize_message, transcribe_audio_file, extract_products
 
 def custom_css():
     st.markdown(
@@ -230,6 +230,7 @@ def process_image(image_file, image_name):
     with st.spinner("Processing image..."):
         product_info = extract_product_info(image_file)
 
+    # Build a nice HTML response
     formatted_message = f"""
     <div class="info-card">
         <strong>Extracted Information:</strong>
@@ -253,7 +254,6 @@ def display_image_chat_history():
         st.markdown('<div class="chat-container">', unsafe_allow_html=True)
         for chat in st.session_state.image_chat_history:
             if chat["role"] == "user":
-                # User's chat bubble with image if present
                 if "image" in chat:
                     st.markdown(f"""
                     <div class="chat-bubble user">
@@ -265,7 +265,7 @@ def display_image_chat_history():
                 st.markdown(f"""
                 <div class="chat-bubble system">
                     {chat["message"]}
-                </div>
+                
                 """, unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -298,11 +298,31 @@ def process_audio(audio_file, audio_name):
     with st.spinner("Transcribing audio..."):
         transcription = transcribe_audio_file(temp_audio_path)
 
+    # Extract product information from the transcription
+    product_data = extract_products(transcription)
+    print(product_data)
+    # Build a prettier HTML layout for the extracted products
+    product_list_html = ""
+    if isinstance(product_data, dict) and "products" in product_data:
+        for product in product_data["products"]:
+            product_name = product.get("product_name", "N/A")
+            quantity = product.get("quantity", "N/A")
+            price = product.get("price", "N/A")
+            product_list_html += f"""
+            <ul>
+                <li><strong>Product Name:</strong> {product_name}</li>
+                <li><strong>Quantity:</strong> {quantity}</li>
+                <li><strong>Price:</strong> {price}</li>
+            </ul>
+            """
+
     formatted_message = f"""
     <div class="info-card">
         <strong>File:</strong> {audio_name}<br><br>
         <strong>Transcription:</strong><br>
-        <div>{transcription}</div>
+        <div>{transcription}</div><br><br>
+        <strong>Extracted Product Information:</strong><br>
+        <div>{product_list_html}</div>
     </div>
     """
 
@@ -320,7 +340,7 @@ def display_audio_chat_history():
                 st.markdown(f"""
                 <div class="chat-bubble system">
                     {chat["message"]}
-                </div>
+                
                 """, unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
