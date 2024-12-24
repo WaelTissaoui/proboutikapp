@@ -342,7 +342,7 @@ def process_audio(audio_file, audio_name):
         <strong>Person Name:</strong> {person_name}<br><br>
         <strong>Extracted Product Information:</strong><br>
         <div>{product_list_html}</div>
-    </div>
+    
     """
 
     # Append the formatted message to the session state history
@@ -360,9 +360,9 @@ def display_audio_chat_history():
                 st.markdown(f"""
                 <div class="chat-bubble system">
                     {chat["message"]}
-                </div>
+                
                 """, unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
