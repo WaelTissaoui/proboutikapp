@@ -220,6 +220,12 @@ def image_extraction_chat():
     display_image_chat_history()
 
 def process_image(image_file, image_name):
+    # Save the uploaded/captured image to a temporary file to get a file path
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_image_file:
+        temp_image_file.write(image_file.getvalue())
+        temp_image_path = temp_image_file.name
+
+    # Store the user image in the chat history
     base64_image = base64.b64encode(image_file.getvalue()).decode("utf-8")
     st.session_state.image_chat_history.append({
         "role": "user",
@@ -227,8 +233,9 @@ def process_image(image_file, image_name):
         "name": image_name
     })
 
+    # Call the extract_product_info function with the image path
     with st.spinner("Processing image..."):
-        product_info = extract_product_info(image_file)
+        product_info = extract_product_info(temp_image_path)
 
     # Build a nice HTML response
     formatted_message = f"""
@@ -300,7 +307,7 @@ def process_audio(audio_file, audio_name):
 
     # Extract product information from the transcription
     product_data = extract_products(transcription)
-    print(product_data)
+
     # Build a prettier HTML layout for the extracted products
     product_list_html = ""
     if isinstance(product_data, dict) and "products" in product_data:
