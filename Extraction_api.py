@@ -4,6 +4,8 @@ import requests
 import streamlit as st
 from openai import OpenAI
 import json
+from datetime import datetime, timedelta
+
 
 # Load secrets
 OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
@@ -26,27 +28,58 @@ def sanitize_message(message):
 
 
 # Function to extract product information
-def extract_product_info(image_file):
-    base64_image = encode_image(image_file)
+import base64
+import re
+from datetime import datetime as dt
+
+def extract_product_info(image_path):
+    # Open the image file once and read into memory
+    with open(image_path, "rb") as f:
+        image_data = f.read()
+
+    # Encode the image data to base64
+    base64_image = base64.b64encode(image_data).decode("utf-8")
+
+    # Expert-level prompt
+    prompt = [
+        {
+            "type": "text",
+            "text": (
+                "You are an expert at extracting structured information from images. "
+                "You are given an image that may contain a product (like a packaged good, a poster, a label, etc.). "
+                "Your task is to extract the following information and return it as a Python dictionary with the exact keys: "
+                "\"product_name\", \"company\", \"start_date\", and \"end_date\".\n\n"
+                "Requirements:\n"
+                "- If any piece of information is not present or cannot be deduced, return null for that field.\n"
+                "- The dates should be returned in the format 'jj-mm-aa' (day-month-year). For example, '01-09-24' would represent 1 September 2024.\n"
+                "- If the product name or company name is unclear, do your best to infer it from logos, text fragments, or any textual clues.\n"
+                "- For start and end dates, carefully inspect the image for dates that might represent a production date, expiration date, promotion period, or validity window. "
+                "Dates may be partially visible or formatted in various ways (dd/mm/yy, dd-mm-yy, mm/yy, etc.). "
+                "Try to interpret and standardize them into 'jj-mm-aa' as best as you can.\n"
+                "- If multiple potential dates are visible, choose the ones that most reasonably represent a start and end timeframe for the product (e.g., a promotional period or a product's valid shelf life). "
+                "If no logical inference can be made, return null for those dates.\n"
+                "- Use advanced reasoning and be creative in interpreting unclear or incomplete clues. Consider language nuances, brand hints, or numeric sequences that could represent dates.\n"
+                "- Always return strictly a single Python dictionary in the following format:\n\n"
+                "{\n"
+                "  \"product_name\": \"...\" or null,\n"
+                "  \"company\": \"...\" or null,\n"
+                "  \"start_date\": \"jj-mm-aa\" or null,\n"
+                "  \"end_date\": \"jj-mm-aa\" or null\n"
+                "}\n"
+            ),
+        },
+        {
+            "type": "image_url",
+            "image_url": {
+                "url": f"data:image/jpeg;base64,{base64_image}",
+            },
+        }
+    ]
+
+    # Make the API call
     response = client.chat.completions.create(
         model="gpt-4o-mini",
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": "Extract me the name of the product if it exists and the company and the start date and the end date of the product. Make them into a Python dictionary. If it does not exist, put null. Do your best in the start and end dates because they might not be very clear. Make the dates in the same format 'jj-mm-aa' and do your best to get them correct. Use some image processing methods.",
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/jpeg;base64,{base64_image}",
-                        },
-                    },
-                ],
-            }
-        ],
+        messages=[{"role": "user", "content": prompt}],
     )
 
     extracted_data = response.choices[0].message.content
@@ -55,9 +88,10 @@ def extract_product_info(image_file):
         "company": None,
         "start_date": None,
         "end_date": None,
+        "days_before_expire": None,
     }
 
-    # Regex patterns to capture each field
+    # Extract fields using regex
     patterns = {
         "product_name": r'"product_name":\s*"([^"]+)"',
         "company": r'"company":\s*"([^"]+)"',
@@ -65,11 +99,23 @@ def extract_product_info(image_file):
         "end_date": r'"end_date":\s*"([^"]+)"',
     }
 
-    # Apply each pattern to the extracted_data string
     for key, pattern in patterns.items():
         match = re.search(pattern, extracted_data)
         if match:
             product_info[key] = match.group(1)
+
+    # Calculate the days before expiration (end_date - start_date)
+    if product_info["start_date"] and product_info["end_date"]:
+        try:
+            # Convert the dates from 'jj-mm-aa' to datetime
+            start_date = dt.strptime(product_info["start_date"], "%d-%m-%y")
+            end_date = dt.strptime(product_info["end_date"], "%d-%m-%y")
+            
+            # Calculate the difference in days between end_date and start_date
+            delta = end_date - start_date
+            product_info["days_before_expire"] = delta.days
+        except ValueError:
+            product_info["days_before_expire"] = None  # If date parsing fails
 
     return product_info
 
@@ -118,47 +164,81 @@ def clean_json_response(content):
     return "{}"  # Fallback to empty JSON if nothing found
 
 def extract_products(text):
-    # API Call to GPT-4o
+    # Calcul dynamique de la date actuelle
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    
+    # Prompt amélioré
+    prompt = f'''
+Le texte suivant est en français: "{text}"
+
+Nous sommes le {today_str}. Veuillez :
+
+1. Extraire le nom de la personne mentionnée dans le texte (par exemple "M. Dupont", "Alice", "Jean Martin", "Madame Sakho", etc.).  
+   - Incluez les titres honorifiques (par exemple, "Madame", "Monsieur") si mentionnés dans le texte.
+   - S'il n'y a pas de nom explicite, retournez "None".
+
+2. Extraire les informations sur les produits et retourner STRICTEMENT le format JSON suivant :
+
+{{
+  "person_name": "Nom de la personne ou None",
+  "products": [
+    {{
+      "product_name": "Nom du produit",
+      "quantity": "Nombre ou None",
+      "price": "Prix ou None",
+      "transaction_type": "vente ou achat",
+      "payment_date": "Date de paiement au format YYYY-MM-DD ou None"
+    }}
+  ]
+}}
+
+Contraintes supplémentaires :
+- N'incluez aucun texte supplémentaire comme des traductions ou des introductions dans la réponse.
+- "transaction_type" doit être "vente" ou "achat" selon ce qui est trouvé dans le texte.
+- Identifiez toute date ou période de paiement mentionnée dans le texte, qu'elle soit absolue (par ex. "15 janvier 2024") ou relative (par ex. "dans deux semaines", "le mois prochain", ou "vendredi prochain"). 
+  - Convertissez cette information en une date exacte au format YYYY-MM-DD en vous basant sur la date du jour ({today_str}).
+  - Si aucune date n'est trouvée, retournez "None".
+- "quantity" doit être un nombre si trouvé, sinon "None".
+- "price" doit être un nombre si trouvé, sinon "None".
+- Le JSON doit strictement respecter ce format (n'ajoutez ni ne retirez aucune clé, à l'exception de "person_name" déjà demandée).
+- Si plusieurs dates sont mentionnées, choisissez celle qui semble le plus logiquement liée au paiement.
+- Soyez créatif dans l'interprétation des dates implicites ou relatives, mais conservez un format rigoureux.
+
+IMPORTANT : Ne retournez rien d'autre que la structure JSON demandée.
+'''
+
+    # API Call à GPT-4o ou GPT-4
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
             {
                 "role": "user",
-                "content": f'''
-Le texte suivant est en français: "{text}"
-
-Veuillez extraire les informations sur les produits vendus. Retournez STRICTEMENT ce format JSON:
-{{
-  "products": [
-    {{
-      "product_name": "Nom du produit",
-      "quantity": "Quantité ou None",
-      "price": "Prix ou None"
-    }}
-  ]
-}}
-'''
+                "content": prompt
             }
         ],
         temperature=0,
         max_tokens=500
     )
 
-    # Raw content from the API
+    # Récupération du contenu brut
     content = response.choices[0].message.content.strip()
 
-    # Clean the response before parsing
+    # Nettoyage avant parsing
     cleaned_content = clean_json_response(content)
-    
-    try:
-        #Parse cleaned content into a Python dictionary
-        result = json.loads(cleaned_content)
-    except json.JSONDecodeError as e:
-        
-        result = {"products": []}
 
-    
+    try:
+        # Conversion en dictionnaire Python
+        result = json.loads(cleaned_content)
+    except json.JSONDecodeError:
+        # En cas d'erreur de parsing JSON, on renvoie une structure par défaut
+        result = {
+            "person_name": None,
+            "products": []
+        }
+
     return result
+
+
 
 
 
