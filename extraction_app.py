@@ -298,41 +298,54 @@ def speech_extraction():
     display_audio_chat_history()
 
 def process_audio(audio_file, audio_name):
+    import tempfile
+    import streamlit as st
+
+    # Save the uploaded audio file to a temporary location
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio_file:
         temp_audio_file.write(audio_file.getvalue())
         temp_audio_path = temp_audio_file.name
 
     with st.spinner("Transcribing audio..."):
+        # Call the transcription function (assumes you have `transcribe_audio_file`)
         transcription = transcribe_audio_file(temp_audio_path)
 
-    # Extract product information from the transcription
-    product_data = extract_products(transcription)
+    # Extract product information and person name from the transcription
+    extracted_data = extract_products(transcription)
 
-    # Build a prettier HTML layout for the extracted products
+    # Build a prettier HTML layout for the extracted data
+    person_name = extracted_data.get("person_name", "N/A")
     product_list_html = ""
-    if isinstance(product_data, dict) and "products" in product_data:
-        for product in product_data["products"]:
+    if isinstance(extracted_data, dict) and "products" in extracted_data:
+        for product in extracted_data["products"]:
             product_name = product.get("product_name", "N/A")
             quantity = product.get("quantity", "N/A")
             price = product.get("price", "N/A")
+            transaction_type = product.get("transaction_type", "N/A")
+            payment_date = product.get("payment_date", "N/A")
             product_list_html += f"""
             <ul>
                 <li><strong>Product Name:</strong> {product_name}</li>
                 <li><strong>Quantity:</strong> {quantity}</li>
                 <li><strong>Price:</strong> {price}</li>
+                <li><strong>Transaction Type:</strong> {transaction_type}</li>
+                <li><strong>Payment Date:</strong> {payment_date}</li>
             </ul>
             """
 
+    # Format the message to include all information
     formatted_message = f"""
     <div class="info-card">
         <strong>File:</strong> {audio_name}<br><br>
         <strong>Transcription:</strong><br>
         <div>{transcription}</div><br><br>
+        <strong>Person Name:</strong> {person_name}<br><br>
         <strong>Extracted Product Information:</strong><br>
         <div>{product_list_html}</div>
     </div>
     """
 
+    # Append the formatted message to the session state history
     st.session_state.audio_chat_history.append({
         "role": "system",
         "message": formatted_message
@@ -347,7 +360,7 @@ def display_audio_chat_history():
                 st.markdown(f"""
                 <div class="chat-bubble system">
                     {chat["message"]}
-                
+                </div>
                 """, unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
