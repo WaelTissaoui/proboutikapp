@@ -332,7 +332,7 @@ def process_audio(audio_file, audio_name):
     extracted_data = extract_products(transcription)
     person_name = extracted_data.get("person_name", "N/A")
 
-    # Build the product list HTML
+    # Build a clean product list as a single <ul> block
     product_list_html = ""
     if isinstance(extracted_data, dict) and "products" in extracted_data:
         for product in extracted_data["products"]:
@@ -342,30 +342,31 @@ def process_audio(audio_file, audio_name):
             transaction_type = product.get("transaction_type", "N/A")
             payment_date = product.get("payment_date", "N/A")
 
+            # Each product is one <li>, with its details on separate lines (or any formatting you prefer)
             product_list_html += f"""
             <li>
-                <ul>
-                    <li><strong>Product Name:</strong> {product_name}</li>
-                    <li><strong>Quantity:</strong> {quantity}</li>
-                    <li><strong>Price:</strong> {price}</li>
-                    <li><strong>Transaction Type:</strong> {transaction_type}</li>
-                    <li><strong>Payment Date:</strong> {payment_date}</li>
-                </ul>
+                <strong>Product Name:</strong> {product_name}<br>
+                <strong>Quantity:</strong> {quantity}<br>
+                <strong>Price:</strong> {price}<br>
+                <strong>Transaction Type:</strong> {transaction_type}<br>
+                <strong>Payment Date:</strong> {payment_date}
             </li>
             """
 
-        # Wrap the collected <li> items in <ul>
+        # Wrap the <li> items in an outer <ul>
         product_list_html = f"<ul>{product_list_html}</ul>"
+    else:
+        product_list_html = "<p>No product information found.</p>"
 
-    # Construct the final message
+    # Construct the final HTML message
     formatted_message = f"""
     <div class="info-card">
         <strong>File:</strong> {audio_name}<br><br>
         <strong>Transcription:</strong><br>
         <div>{transcription}</div><br><br>
         <strong>Person Name:</strong> {person_name}<br><br>
-        <strong>Extracted Product Information:</strong><br>
-        <div>{product_list_html}</div>
+        <strong>Extracted Product Information:</strong>
+        {product_list_html}
     </div>
     """
 
@@ -384,7 +385,7 @@ def display_audio_chat_history():
                 st.markdown(f"""
                 <div class="chat-bubble system">
                     {chat["message"]}
-                </div>
+                
                 """, unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
