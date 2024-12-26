@@ -174,10 +174,19 @@ def custom_css():
 def main():
     custom_css()
 
+    # Initialize session state for images
     if "image_chat_history" not in st.session_state:
         st.session_state.image_chat_history = []
+    if "last_processed_input_image" not in st.session_state:
+        st.session_state.last_processed_input_image = None
+    
+    # Initialize session state for audio
     if "audio_chat_history" not in st.session_state:
         st.session_state.audio_chat_history = []
+    if "last_processed_input_audio" not in st.session_state:
+        st.session_state.last_processed_input_audio = None
+    
+    # App mode
     if "app_mode" not in st.session_state:
         st.session_state.app_mode = "image_extraction"
 
@@ -193,6 +202,7 @@ def main():
 
         st.markdown('</div>', unsafe_allow_html=True)
 
+    # Decide which mode to run
     if st.session_state.app_mode == "image_extraction":
         image_extraction_chat()
     else:
@@ -210,7 +220,6 @@ def image_extraction_chat():
         if image_name != st.session_state.get("last_processed_input_image"):
             process_image(camera_image, image_name)
             st.session_state.last_processed_input_image = image_name
-
     elif uploaded_image is not None:
         image_name = uploaded_image.name
         if image_name != st.session_state.get("last_processed_input_image"):
@@ -272,7 +281,7 @@ def display_image_chat_history():
                 st.markdown(f"""
                 <div class="chat-bubble system">
                     {chat["message"]}
-                
+                </div>
                 """, unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -285,10 +294,10 @@ def speech_extraction():
 
     if recorded_audio is not None:
         audio_name = "Recorded Audio"
+        # We track the last processed input to avoid processing the same audio multiple times
         if audio_name != st.session_state.get("last_processed_input_audio"):
             process_audio(recorded_audio, audio_name)
             st.session_state.last_processed_input_audio = audio_name
-
     elif uploaded_audio is not None:
         audio_name = uploaded_audio.name
         if audio_name != st.session_state.get("last_processed_input_audio"):
@@ -298,23 +307,20 @@ def speech_extraction():
     display_audio_chat_history()
 
 def process_audio(audio_file, audio_name):
-    import tempfile
-    import streamlit as st
-
-    # Save the uploaded audio file to a temporary location
+    # Save the uploaded/recorded audio to a temp file
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio_file:
         temp_audio_file.write(audio_file.getvalue())
         temp_audio_path = temp_audio_file.name
 
+    # Transcribe the audio
     with st.spinner("Transcribing audio..."):
-        # Call the transcription function (assumes you have `transcribe_audio_file`)
         transcription = transcribe_audio_file(temp_audio_path)
 
-    # Extract product information and person name from the transcription
+    # Extract products and person name
     extracted_data = extract_products(transcription)
-
-    # Build a prettier HTML layout for the extracted data
     person_name = extracted_data.get("person_name", "N/A")
+
+    # Build the product list HTML
     product_list_html = ""
     if isinstance(extracted_data, dict) and "products" in extracted_data:
         for product in extracted_data["products"]:
@@ -323,17 +329,23 @@ def process_audio(audio_file, audio_name):
             price = product.get("price", "N/A")
             transaction_type = product.get("transaction_type", "N/A")
             payment_date = product.get("payment_date", "N/A")
+
             product_list_html += f"""
-            <ul>
-                <li><strong>Product Name:</strong> {product_name}</li>
-                <li><strong>Quantity:</strong> {quantity}</li>
-                <li><strong>Price:</strong> {price}</li>
-                <li><strong>Transaction Type:</strong> {transaction_type}</li>
-                <li><strong>Payment Date:</strong> {payment_date}</li>
-            </ul>
+            <li>
+                <ul>
+                    <li><strong>Product Name:</strong> {product_name}</li>
+                    <li><strong>Quantity:</strong> {quantity}</li>
+                    <li><strong>Price:</strong> {price}</li>
+                    <li><strong>Transaction Type:</strong> {transaction_type}</li>
+                    <li><strong>Payment Date:</strong> {payment_date}</li>
+                </ul>
+            </li>
             """
 
-    # Format the message to include all information
+        # Wrap the collected <li> items in <ul>
+        product_list_html = f"<ul>{product_list_html}</ul>"
+
+    # Construct the final message
     formatted_message = f"""
     <div class="info-card">
         <strong>File:</strong> {audio_name}<br><br>
@@ -342,10 +354,10 @@ def process_audio(audio_file, audio_name):
         <strong>Person Name:</strong> {person_name}<br><br>
         <strong>Extracted Product Information:</strong><br>
         <div>{product_list_html}</div>
-    
+    </div>
     """
 
-    # Append the formatted message to the session state history
+    # Append the result to the audio chat history
     st.session_state.audio_chat_history.append({
         "role": "system",
         "message": formatted_message
@@ -360,9 +372,9 @@ def display_audio_chat_history():
                 st.markdown(f"""
                 <div class="chat-bubble system">
                     {chat["message"]}
-                
+                </div>
                 """, unsafe_allow_html=True)
-        st.markdown('', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
