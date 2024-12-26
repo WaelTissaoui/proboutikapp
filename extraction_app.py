@@ -1,6 +1,8 @@
 import streamlit as st
 import base64
 import tempfile
+import uuid  # NEW IMPORT for unique identifiers
+
 from Extraction_api import extract_product_info, sanitize_message, transcribe_audio_file, extract_products
 
 def custom_css():
@@ -216,12 +218,18 @@ def image_extraction_chat():
     camera_image = st.camera_input("Take a picture")
 
     if camera_image is not None:
-        image_name = "Captured Image"
+        # Generate a unique name each time so it never collides with a previous capture
+        unique_id = str(uuid.uuid4())
+        image_name = f"captured_image_{unique_id}"
+        # Check if we have processed this *exact* unique name before
         if image_name != st.session_state.get("last_processed_input_image"):
             process_image(camera_image, image_name)
             st.session_state.last_processed_input_image = image_name
+
     elif uploaded_image is not None:
-        image_name = uploaded_image.name
+        # Combine user-provided filename with a UUID for uniqueness
+        unique_id = str(uuid.uuid4())
+        image_name = f"{uploaded_image.name}_{unique_id}"
         if image_name != st.session_state.get("last_processed_input_image"):
             process_image(uploaded_image, image_name)
             st.session_state.last_processed_input_image = image_name
@@ -293,13 +301,17 @@ def speech_extraction():
     recorded_audio = st.audio_input("Record audio")
 
     if recorded_audio is not None:
-        audio_name = "Recorded Audio"
-        # We track the last processed input to avoid processing the same audio multiple times
+        # Generate a unique name so the next recording won't be blocked
+        unique_id = str(uuid.uuid4())
+        audio_name = f"recorded_audio_{unique_id}"
         if audio_name != st.session_state.get("last_processed_input_audio"):
             process_audio(recorded_audio, audio_name)
             st.session_state.last_processed_input_audio = audio_name
+
     elif uploaded_audio is not None:
-        audio_name = uploaded_audio.name
+        # Combine original filename with a UUID
+        unique_id = str(uuid.uuid4())
+        audio_name = f"{uploaded_audio.name}_{unique_id}"
         if audio_name != st.session_state.get("last_processed_input_audio"):
             process_audio(uploaded_audio, audio_name)
             st.session_state.last_processed_input_audio = audio_name
