@@ -263,7 +263,7 @@ def display_image_chat_history():
                     <div class="chat-bubble user">
                         <img class="chat-image" src="data:image/png;base64,{chat['image']}" alt="{chat['name']}"/>
                         <strong>You uploaded:</strong> {chat['name']}
-                    </div>
+                    
                     """, unsafe_allow_html=True)
             elif chat["role"] == "system":
                 st.markdown(f"""
