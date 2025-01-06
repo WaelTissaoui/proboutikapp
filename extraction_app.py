@@ -1,11 +1,16 @@
 import streamlit as st
 import base64
 import tempfile
-import uuid  # NEW IMPORT for unique identifiers
+import uuid
 
+# Replace with your actual imports
+# e.g. from my_module import extract_product_info, sanitize_message, ...
 from Extraction_api import extract_product_info, sanitize_message, transcribe_audio_file, extract_products
 
 def custom_css():
+    """
+    Inject custom CSS to style the Streamlit app nicely.
+    """
     st.markdown(
         """
         <style>
@@ -17,19 +22,15 @@ def custom_css():
             background: #f1f3f5;
             color: #333;
         }
-
-        /* Layout Tweaks */
         .main, .stApp {
             padding: 20px;
         }
-
-        /* Sidebar Styling */
+        /* Sidebar */
         .css-1cypcdb {
             background: #ffffff;
             border-right: 1px solid #eee;
             padding: 20px;
         }
-
         .app-title {
             font-size: 1.6em;
             font-weight: 700;
@@ -37,15 +38,12 @@ def custom_css():
             color: #2c3e50;
             text-align: center;
         }
-
-        /* Cards (Mode Selection Buttons) */
         .cards-container {
             display: flex;
             flex-direction: column;
             gap: 20px;
             align-items: center;
         }
-
         .stButton > button {
             background: #ffffff;
             border-radius: 8px;
@@ -63,13 +61,11 @@ def custom_css():
             border: none;
             transition: transform 0.2s, box-shadow 0.2s;
         }
-
         .stButton > button:hover {
             transform: translateY(-5px);
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
-
-        /* Titles and Headings */
+        /* Main titles */
         h1.main-title {
             font-weight: 700;
             color: #2c3e50;
@@ -79,17 +75,14 @@ def custom_css():
             align-items: center;
             gap: 10px;
         }
-
         h1.main-title i {
             font-size: 1.3em;
         }
-
         .section-subtitle {
             font-size: 1.1em;
             color: #555;
             margin-bottom: 30px;
         }
-
         h3.history-title {
             font-size: 1.3em;
             border-bottom: 2px solid #eee;
@@ -98,14 +91,11 @@ def custom_css():
             margin-top: 40px;
             font-weight: 600;
         }
-
-        /* Chat Container */
+        /* Chat container and bubbles */
         .chat-container {
             max-width: 600px;
             margin: 0 auto;
         }
-
-        /* Chat message bubbles */
         .chat-bubble {
             padding: 15px;
             border-radius: 10px;
@@ -116,22 +106,18 @@ def custom_css():
             word-wrap: break-word;
             position: relative;
         }
-
         .chat-bubble.user {
             background: #d9ecff;
             margin-left: auto;
             text-align: left;
             border: 1px solid #c6ddf7;
         }
-
         .chat-bubble.system {
             background: #ffffff;
             margin-right: auto;
             text-align: left;
             border: 1px solid #eaeaea;
         }
-
-        /* Chat images */
         .chat-image {
             max-width: 120px;
             border-radius: 8px;
@@ -139,8 +125,7 @@ def custom_css():
             margin-bottom: 10px;
             border: 1px solid #ddd;
         }
-
-        /* Info Cards */
+        /* Info card styling */
         .info-card {
             background: #fefefe;
             border-radius: 8px;
@@ -148,12 +133,10 @@ def custom_css():
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
             font-size: 15px;
         }
-
         .info-card strong {
             color: #2c3e50;
         }
-
-        /* File Uploaders */
+        /* File uploaders */
         .stFileUploader, .stCameraInput, .stAudioInput {
             border: 2px dashed #ccc;
             border-radius: 6px;
@@ -162,12 +145,9 @@ def custom_css():
             text-align: center;
             background: #fafafa;
         }
-
-        /* Make the file uploader area smaller and cleaner */
         .stFileUploader > div, .stCameraInput > div {
             width: 100%;
         }
-
         </style>
         """,
         unsafe_allow_html=True,
@@ -289,9 +269,10 @@ def display_image_chat_history():
                 st.markdown(f"""
                 <div class="chat-bubble system">
                     {chat["message"]}
-                </div>
+                
                 """, unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
+
 
 def speech_extraction():
     st.markdown("<h1 class='main-title'><i class='fa fa-microphone'></i> Speech-Based Product Information</h1>", unsafe_allow_html=True)
@@ -300,94 +281,93 @@ def speech_extraction():
     uploaded_audio = st.file_uploader("Upload an audio file...", type=["wav", "mp3"])
     recorded_audio = st.audio_input("Record audio")
 
-    if recorded_audio is not None:
-        # Generate a unique name so the next recording won't be blocked
+    # If user records an audio
+    if recorded_audio:
         unique_id = str(uuid.uuid4())
         audio_name = f"recorded_audio_{unique_id}"
-        if audio_name != st.session_state.get("last_processed_input_audio"):
+        if audio_name != st.session_state["last_processed_input_audio"]:
             process_audio(recorded_audio, audio_name)
-            st.session_state.last_processed_input_audio = audio_name
+            st.session_state["last_processed_input_audio"] = audio_name
 
-    elif uploaded_audio is not None:
-        # Combine original filename with a UUID
+    # If user uploads an audio file
+    elif uploaded_audio:
         unique_id = str(uuid.uuid4())
         audio_name = f"{uploaded_audio.name}_{unique_id}"
-        if audio_name != st.session_state.get("last_processed_input_audio"):
+        if audio_name != st.session_state["last_processed_input_audio"]:
             process_audio(uploaded_audio, audio_name)
-            st.session_state.last_processed_input_audio = audio_name
+            st.session_state["last_processed_input_audio"] = audio_name
 
+    # Show chat
     display_audio_chat_history()
 
 def process_audio(audio_file, audio_name):
-    # Save the uploaded/recorded audio to a temp file
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio_file:
-        temp_audio_file.write(audio_file.getvalue())
-        temp_audio_path = temp_audio_file.name
+    # Write audio to disk
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
+        temp_audio.write(audio_file.getvalue())
+        temp_audio_path = temp_audio.name
 
-    # Transcribe the audio
+    # Transcribe
     with st.spinner("Transcribing audio..."):
         transcription = transcribe_audio_file(temp_audio_path)
 
-    # Extract products and person name
+    # Extract products
     extracted_data = extract_products(transcription)
     person_name = extracted_data.get("person_name", "N/A")
 
-    # Build a clean product list as a single <ul> block
-    product_list_html = ""
+    # Build HTML for product list
+    product_html = ""
     if isinstance(extracted_data, dict) and "products" in extracted_data:
-        for product in extracted_data["products"]:
-            product_name = product.get("product_name", "N/A")
-            quantity = product.get("quantity", "N/A")
-            price = product.get("price", "N/A")
-            transaction_type = product.get("transaction_type", "N/A")
-            payment_date = product.get("payment_date", "N/A")
-
-            # Each product is one <li>, with its details on separate lines (or any formatting you prefer)
-            product_list_html += f"""
-            <li>
-                <strong>Product Name:</strong> {product_name}<br>
-                <strong>Quantity:</strong> {quantity}<br>
-                <strong>Price:</strong> {price}<br>
-                <strong>Transaction Type:</strong> {transaction_type}<br>
-                <strong>Payment Date:</strong> {payment_date}
-            </li>
-            """
-
-        # Wrap the <li> items in an outer <ul>
-        product_list_html = f"<ul>{product_list_html}</ul>"
+        products = extracted_data["products"]
+        if products:
+            product_html = "<ul>"
+            for prod in products:
+                product_html += (
+                    "<li>"
+                    f"<strong>Product Name:</strong> {prod.get('product_name', 'N/A')}<br>"
+                    f"<strong>Quantity:</strong> {prod.get('quantity', 'N/A')}<br>"
+                    f"<strong>Price:</strong> {prod.get('price', 'N/A')}<br>"
+                    f"<strong>Transaction Type:</strong> {prod.get('transaction_type', 'N/A')}<br>"
+                    f"<strong>Payment Date:</strong> {prod.get('payment_date', 'N/A')}"
+                    "</li>"
+                )
+            product_html += "</ul>"
+        else:
+            product_html = "<p>No product information found.</p>"
     else:
-        product_list_html = "<p>No product information found.</p>"
+        product_html = "<p>No product information found.</p>"
 
-    # Construct the final HTML message
-    formatted_message = f"""
-    <div class="info-card">
-        <strong>File:</strong> {audio_name}<br><br>
-        <strong>Transcription:</strong><br>
-        <div>{transcription}</div><br><br>
-        <strong>Person Name:</strong> {person_name}<br><br>
-        <strong>Extracted Product Information:</strong>
-        {product_list_html}
-    </div>
-    """
+    # Combine everything into a final HTML snippet
+    msg_html = (
+        "<div class='info-card'>"
+        f"<strong>File:</strong> {audio_name}<br><br>"
+        "<strong>Transcription:</strong><br>"
+        f"<div>{transcription}</div><br>"
+        f"<strong>Person Name:</strong> {person_name}<br><br>"
+        "<strong>Extracted Product Information:</strong>"
+        f"{product_html}"
+        "</div>"
+    )
 
-    # Append the result to the audio chat history
-    st.session_state.audio_chat_history.append({
+    # Store result in audio chat
+    st.session_state["audio_chat_history"].append({
         "role": "system",
-        "message": formatted_message
+        "message": msg_html
     })
 
 def display_audio_chat_history():
-    if st.session_state.audio_chat_history:
+    if st.session_state["audio_chat_history"]:
         st.markdown("<h3 class='history-title'>Chat History</h3>", unsafe_allow_html=True)
-        st.markdown('<div class="chat-container">', unsafe_allow_html=True)
-        for chat in st.session_state.audio_chat_history:
-            if chat["role"] == "system":
-                st.markdown(f"""
-                <div class="chat-bubble system">
-                    {chat["message"]}
-                
-                """, unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown("<div class='chat-container'>", unsafe_allow_html=True)
+
+        for chat_item in st.session_state["audio_chat_history"]:
+            if chat_item["role"] == "system":
+                # Render system bubble
+                st.markdown(
+                    f"<div class='chat-bubble system'>{chat_item['message']}</div>",
+                    unsafe_allow_html=True
+                )
+
+        st.markdown("</div>", unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
