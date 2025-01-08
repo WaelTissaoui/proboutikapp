@@ -2,22 +2,18 @@ import base64
 import re
 import requests
 import streamlit as st
-import json
-import openai  # Added to use OpenAI Whisper
-from datetime import datetime, timedelta
-from datetime import datetime as dt
 from openai import OpenAI
+import json
+from datetime import datetime, timedelta
+
 
 # Load secrets
 OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
 ANDAKIA_API_KEY = st.secrets["ANDAKIA_API_KEY"]
 API_URL = st.secrets["API_URL"]
 
-# Initialize the OpenAI client (optionally, we can still use client below)
+# Initialize OpenAI client
 client = OpenAI(api_key=OPENAI_API_KEY)
-
-# Also set OpenAI's API key for direct usage (for Whisper, etc.)
-openai.api_key = OPENAI_API_KEY
 
 # Function to encode the image in base64
 def encode_image(image_file):
@@ -30,7 +26,12 @@ def sanitize_message(message):
     sanitized_message = re.sub(r"<.*?>", "", message)
     return sanitized_message
 
-# Function to extract product information from an image
+
+# Function to extract product information
+import base64
+import re
+from datetime import datetime as dt
+
 def extract_product_info(image_path):
     # Open the image file once and read into memory
     with open(image_path, "rb") as f:
@@ -118,13 +119,15 @@ def extract_product_info(image_path):
 
     return product_info
 
-# The Andakia API transcription function (for Wolof)
+
 def transcribe_audio_file(file_path):
     headers = {
         "Authorization": f"Bearer {ANDAKIA_API_KEY}",
     }
 
+    
     with open(file_path, 'rb') as audio_file:
+       
         files = {
             'incoming_file': audio_file,
         }
@@ -138,10 +141,12 @@ def transcribe_audio_file(file_path):
             response = requests.post(API_URL, headers=headers, files=files, data=data)
             response_data = response.json()
 
+            
             if response.status_code == 200:
                 return response_data.get('transcription', '')
             else:
                 return f"Error: {response_data.get('error_message', 'Unknown error')}"
+
         except Exception as e:
             return f"Error: {str(e)}"
 
@@ -233,56 +238,7 @@ IMPORTANT : Ne retournez rien d'autre que la structure JSON demandée.
 
     return result
 
-# ------------------------------------------------------------------------------
-# NEW FUNCTIONS ADDED FOR AUTO-DETECTION & TRANSCRIPTION WITH OPENAI WHISPER
-# ------------------------------------------------------------------------------
 
-def detect_language_openai(file_path):
-    """
-    Detect language and transcribe using OpenAI Whisper API.
-    Returns a tuple (language_code, text).
-    Example: ("fr", "Transcribed text...")
-    """
-    with open(file_path, "rb") as audio_file:
-        # Let Whisper auto-detect language
-        response = openai.Audio.transcribe(
-            model="whisper-1",
-            file=audio_file,
-            language=None  # None => auto-detect
-        )
-    # 'language' might be "en", "fr", "ar", ...
-    language_code = response.get("language", "")
-    text = response.get("text", "")
-    return language_code, text
 
-def transcribe_audio_with_condition(file_path):
-    """
-    1. Use OpenAI Whisper to detect language & do a first transcription.
-    2. If language is Wolof => use Andakia's API for final transcription.
-    3. If language is Arabic (ar), French (fr), English (en) => use Whisper text.
-    4. Then extract product information from the final transcription.
-    """
-    detected_language, openai_transcription = detect_language_openai(file_path)
 
-    # Decide which transcription to keep based on detected_language
-    if detected_language.lower() in ["wo", "wolof"]:
-        # Wolof => use Andakia
-        final_text = transcribe_audio_file(file_path)
-    elif detected_language.lower() in ["ar", "fr", "en"]:
-        # Arabic, French, or English => use OpenAI Whisper transcription
-        final_text = openai_transcription
-    else:
-        # Fallback for any other language not handled
-        final_text = (
-            f"Language detected: {detected_language}. "
-            "Currently not supported by this pipeline."
-        )
 
-    # Now we can extract products (or any other structured info) from final_text
-    structured_data = extract_products(final_text)
-
-    return {
-        "detected_language": detected_language,
-        "transcription": final_text,
-        "structured_data": structured_data
-    }
