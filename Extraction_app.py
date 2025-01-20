@@ -2,10 +2,7 @@ import streamlit as st
 import base64
 import tempfile
 import uuid
-
-# Replace with your actual imports
-# e.g. from my_module import extract_product_info, sanitize_message, ...
-from Extraction_api import extract_product_info, sanitize_message, transcribe_audio_file, extract_products
+from Api_Functions import extract_image_product_info, sanitize_message, transcribe_audio_file, extract_products
 
 def custom_css():
     """
@@ -230,9 +227,9 @@ def process_image(image_file, image_name):
         "name": image_name
     })
 
-    # Call the extract_product_info function with the image path
+    
     with st.spinner("Processing image..."):
-        product_info = extract_product_info(temp_image_path)
+        product_info = extract_image_product_info(temp_image_path)
 
     # Build a nice HTML response
     formatted_message = f"""
